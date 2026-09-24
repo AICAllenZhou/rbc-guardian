@@ -8,28 +8,10 @@
 |---|---|
 | Branch | `feat/rbc-guardian-p1` (a new repo: `git init` in this folder; `main` has no commits) |
 | Final code commit | `c5cebe4` (`docs: add agent setup demo script and handoff`); this file is committed on top of it |
-| Pushed remote branch | **None: not pushed.** See below |
+| Pushed remote branch | `origin/feat/rbc-guardian-p1` at https://github.com/AICAllenZhou/rbc-guardian (public). `.env` is not in the repository or its history; `.env.example` is |
 | Deployment | None. No Vercel, no hosting, no Twilio |
 
-### Why it is not pushed
-
-This folder had no git repository and no GitHub remote. `git push -u origin feat/rbc-guardian-p1` fails with:
-
-```
-fatal: 'origin' does not appear to be a git repository
-fatal: Could not read from remote repository.
-```
-
-`gh` is authenticated (account `AICAllenZhou`), but creating a new GitHub repository was not explicitly requested, so it was left for you. To publish the branch to a new **private** repository:
-
-```bash
-cd "/Users/allenzhou/Documents/RBC Alebex Voice Agent"
-pnpm secret-scan                                   # must print "clean"
-gh repo create AICAllenZhou/rbc-guardian --private --source . --remote origin
-git push -u origin feat/rbc-guardian-p1
-```
-
-Or, for an existing repository: `git remote add origin <url> && git push -u origin feat/rbc-guardian-p1`. Do not push `main`; it is empty.
+The repository was created on 2026-09-24 with `gh repo create AICAllenZhou/rbc-guardian --public --source . --remote origin`, followed by `git push -u origin feat/rbc-guardian-p1`. The secret scan was clean before the push. `main` has no commits, so GitHub shows the feature branch as the default. No pull request was opened.
 
 ## Current `.env` state (names only)
 
