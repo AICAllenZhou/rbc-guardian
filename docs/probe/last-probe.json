@@ -1,0 +1,44 @@
+{
+  "status": "pass",
+  "mode": "auth-only",
+  "at": "2026-09-24T07:23:24.078Z",
+  "tokenEnvName": "ALEB_API_KEY",
+  "endpoint": "wss://api.voice.alebex.ai/public/ws/call",
+  "handshake": {
+    "ok": true,
+    "subprotocolEchoed": "alebex.token.[token]",
+    "latencyMs": 386
+  },
+  "frames": {
+    "error": 1
+  },
+  "shapes": {
+    "error": [
+      {
+        "type": "error",
+        "code": "string(19)",
+        "message": "string(31)"
+      }
+    ]
+  },
+  "binaryFrames": {
+    "count": 0,
+    "sizes": []
+  },
+  "agentAudio": {
+    "bytes": 0,
+    "secondsAt24k": 0,
+    "encodings": []
+  },
+  "marks": {
+    "received": 0,
+    "echoed": 0,
+    "flushedByClear": 0
+  },
+  "close": {
+    "code": 1011,
+    "reason": ""
+  },
+  "notes": [],
+  "summary": "Auth-only probe: token accepted; start_call with a nonexistent agent → error frame code \"payload_unavailable\", close 1011. Audio/mark/transcript shapes NOT confirmed (no agent ID configured)."
+}

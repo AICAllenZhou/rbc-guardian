@@ -1,0 +1,26 @@
+{
+  "name": "@guardian/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsup"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@guardian/alebex-protocol": "workspace:*",
+    "@guardian/shared": "workspace:*",
+    "fastify": "^5.6.0",
+    "ws": "^8.18.3",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0"
+  }
+}
