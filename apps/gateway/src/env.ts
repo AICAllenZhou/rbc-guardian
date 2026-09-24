@@ -115,7 +115,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     port,
     host: clean(env.GATEWAY_HOST) ?? "127.0.0.1",
     appOrigin: clean(env.APP_ORIGIN) ?? "http://localhost:3000",
-    gatewayOrigin: clean(env.GATEWAY_ORIGIN) ?? `http://localhost:${port}`,
+    gatewayOrigin: clean(env.GATEWAY_ORIGIN) ?? `http://127.0.0.1:${port}`,
     databasePath,
     alebexToken: token,
     tokenSource: source,

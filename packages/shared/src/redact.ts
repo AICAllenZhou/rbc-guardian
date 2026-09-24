@@ -8,9 +8,10 @@ const RULES: { name: string; re: RegExp; replacement: string }[] = [
   { name: "card", re: /(?<![\w$])(?:\d[ -]?){12,18}\d(?![\w])/g, replacement: "[card number]" },
   // North American phone numbers.
   { name: "phone", re: /(?<![\w$])(?:\+?1[ .-]?)?\(?\d{3}\)?[ .-]?\d{3}[ .-]\d{4}(?![\w])/g, replacement: "[phone]" },
-  // Standalone 4–8 digit codes (OTP, PIN). Not after "$", "-", "," or "." and not followed by ",digit" or ".digit".
+  // Standalone 4–8 digit codes (OTP, PIN). Not after "$", "-", ",", ".", ":" or "/" (money, IDs, ports, paths)
+  // and not followed by ",digit" or ".digit".
   // "card ending 4417" is a last-4 reference, not a secret, and stays readable.
-  { name: "code", re: /(?<![\w$,.-])(?<!ending )(?<!last four )(?<!last 4 )\d{4,8}(?![\w]|[.,]\d)/gi, replacement: "[code]" },
+  { name: "code", re: /(?<![\w$,.:/-])(?<!ending )(?<!last four )(?<!last 4 )\d{4,8}(?![\w]|[.,]\d)/gi, replacement: "[code]" },
   // Spoken codes: four or more digit words in a row ("four eight two one").
   {
     name: "spoken_code",

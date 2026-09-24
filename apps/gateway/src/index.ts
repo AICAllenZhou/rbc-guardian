@@ -22,7 +22,7 @@ async function main(): Promise<void> {
     url: `http://${cfg.host}:${cfg.port}`,
     mode: cfg.mode,
     tokenConfigured: !!cfg.alebexToken,
-    tokenEnvName: cfg.tokenSource,
+    credentialVariable: cfg.tokenSource,
     agents: Object.fromEntries(Object.entries(cfg.agents).map(([k, v]) => [k, !!v])),
     publicToolUrl: !!cfg.publicToolBaseUrl,
   });

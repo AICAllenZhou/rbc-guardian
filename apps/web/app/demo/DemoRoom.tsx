@@ -155,6 +155,7 @@ export function DemoRoom() {
             </p>
             <div className="mt-3 grid gap-2">
               {[
+                ["Issue reverse-auth phrase", "issue_reverse_auth_phrase", {}],
                 ["Customer confirmed phrase", "record_customer_response", { response_type: "confirmed_reverse_auth" }],
                 ["Customer denies purchase", "record_customer_response", { response_type: "denies_transaction" }],
                 ["Caller asked for a code", "record_customer_response", { response_type: "was_asked_for_code" }],
@@ -179,6 +180,12 @@ export function DemoRoom() {
         {/* Call: on small screens it jumps to the top while a call is live, so you never scroll to find it. */}
         <div className={inCall || ringing ? "order-first lg:order-none" : ""}>
           <CallPanel call={call} role={call.session?.role ?? (call.phase === "requesting" ? role : call.error?.code === "busy" ? null : role)} />
+          {/* On phones the case column is far below; keep the phrase next to the call while it matters. */}
+          {inCall && c?.reverseAuth ? (
+            <div className="mt-4 lg:hidden" data-testid="reverse-auth-mobile">
+              <ReverseAuthSeal auth={c.reverseAuth} agentName={agentName} />
+            </div>
+          ) : null}
           {call.phase === "ended" && c ? (
             <div className="surface-quiet mt-4 flex flex-wrap items-center justify-between gap-3 p-4" data-testid="call-summary">
               <div>

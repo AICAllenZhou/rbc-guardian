@@ -128,6 +128,7 @@ describe("log redaction", () => {
     expect((out.nested as Record<string, unknown>).apiKey).toBe("[redacted]");
     expect(out.msg).toBe("token [redacted-token] leaked");
     expect(out.ticket).toBe("[redacted]");
+    expect(scrub({ tokenConfigured: true })).toEqual({ tokenConfigured: true });
   });
 
   it("never writes a secret through the logger", () => {

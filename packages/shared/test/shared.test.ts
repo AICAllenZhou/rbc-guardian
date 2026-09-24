@@ -77,7 +77,7 @@ describe("redaction", () => {
     expect(redact(input)).toBe(expected);
   });
 
-  it.each(["CAD $2,840 at the Apple Store", "case GUARD-4821", "risk 92 out of 99", "card ending 4417 is locked"])("leaves %s readable where safe", (input) => {
+  it.each(["CAD $2,840 at the Apple Store", "case GUARD-4821", "risk 92 out of 99", "card ending 4417 is locked", "listening on http://127.0.0.1:3001", "path /tools/1234"])("leaves %s readable where safe", (input) => {
     expect(redact(input)).toBe(input);
   });
 });

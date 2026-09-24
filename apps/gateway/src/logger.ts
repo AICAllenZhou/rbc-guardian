@@ -14,7 +14,8 @@ export function scrub(value: unknown, depth = 0): unknown {
   if (Array.isArray(value)) return value.map((v) => scrub(v, depth + 1));
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out[k] = SECRET_KEYS.test(k) ? "[redacted]" : scrub(v, depth + 1);
+    // Mask secret-named fields that carry a value; booleans like `tokenConfigured` are safe readiness facts.
+    out[k] = SECRET_KEYS.test(k) && typeof v !== "boolean" ? "[redacted]" : scrub(v, depth + 1);
   }
   return out;
 }

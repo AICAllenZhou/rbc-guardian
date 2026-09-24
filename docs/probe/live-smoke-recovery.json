@@ -1,0 +1,33 @@
+{
+  "at": "2026-09-24T09:17:58.533Z",
+  "role": "recovery",
+  "mode": "live-voice-only",
+  "states": [
+    "connecting_upstream",
+    "starting",
+    "active",
+    "ending",
+    "ended"
+  ],
+  "counts": {
+    "state": 5,
+    "message": 3,
+    "mark": 2,
+    "transcript": 6,
+    "clear_audio": 1,
+    "ended": 1
+  },
+  "binaryAudioBytes": 1966080,
+  "marksAcked": 1,
+  "messages": {
+    "user": 1,
+    "agent": 2
+  },
+  "userPartials": 6,
+  "errors": [],
+  "endReason": "customer-ended-call",
+  "closeCode": 1000,
+  "secretLeak": false,
+  "stats": "finished",
+  "status": "pass"
+}

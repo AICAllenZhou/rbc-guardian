@@ -1,0 +1,33 @@
+{
+  "at": "2026-09-24T09:17:33.579Z",
+  "role": "trustline",
+  "mode": "live-voice-only",
+  "states": [
+    "connecting_upstream",
+    "starting",
+    "active",
+    "ending",
+    "ended"
+  ],
+  "counts": {
+    "state": 5,
+    "message": 3,
+    "mark": 2,
+    "transcript": 19,
+    "clear_audio": 1,
+    "ended": 1
+  },
+  "binaryAudioBytes": 697712,
+  "marksAcked": 2,
+  "messages": {
+    "user": 1,
+    "agent": 2
+  },
+  "userPartials": 19,
+  "errors": [],
+  "endReason": "customer-ended-call",
+  "closeCode": 1000,
+  "secretLeak": false,
+  "stats": "finished",
+  "status": "pass"
+}

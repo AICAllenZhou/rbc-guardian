@@ -15,6 +15,9 @@ async function say(page: Page, pattern: RegExp) {
   await hints.getByRole("button", { name: pattern }).click();
 }
 
+/** The live-case column (desktop). The phone layout repeats the phrase under the call. */
+const caseColumn = (page: Page) => page.getByRole("complementary", { name: "Live case" });
+
 async function shot(page: Page, name: string) {
   if (SHOTS) await page.screenshot({ path: `docs/screenshots/${name}.png`, fullPage: true });
 }
@@ -56,14 +59,14 @@ test("Sentinel flow: detection, simulated call, reverse auth, one card lock, ris
 
   // Atlas discloses and authenticates itself first.
   await expect(page.getByTestId("transcript")).toContainText("I will never ask for your password, PIN, or a one-time code");
-  const phrase = page.getByTestId("reverse-auth-phrase");
+  const phrase = caseColumn(page).getByTestId("reverse-auth-phrase");
   await expect(phrase).toHaveText(/^[A-Z]+ [A-Z]+$/);
   const phraseText = (await phrase.textContent())!.trim();
   await expect(page.getByTestId("transcript")).toContainText(`Mine reads: ${phraseText}`);
   await shot(page, "03-reverse-auth");
 
   await say(page, /it matches/i);
-  await expect(page.getByTestId("reverse-auth-verified")).toBeVisible();
+  await expect(caseColumn(page).getByTestId("reverse-auth-verified")).toBeVisible();
   await expect(page.getByTestId("transcript")).toContainText("2,840 Canadian dollars at the Apple Store in Miami");
 
   await say(page, /that wasn't me/i);
@@ -107,7 +110,7 @@ test("TrustLine flow opens a new case and Recovery continues it with a different
   await page.getByTestId("call-trustline").click();
   const panel = page.getByTestId("call-panel");
   await expect(panel).toContainText("Maya, Guardian TrustLine");
-  await expect(page.getByTestId("reverse-auth-phrase")).toBeVisible();
+  await expect(caseColumn(page).getByTestId("reverse-auth-phrase")).toBeVisible();
   const caseId = (await page.getByTestId("case-id").textContent())!.trim();
   expect(caseId).toMatch(/^GUARD-\d{4}$/);
   expect(caseId).not.toBe("GUARD-4821");
@@ -149,7 +152,7 @@ test("the browser never receives the Alebex token or tool credentials", async ({
   await page.goto("/demo");
   await page.getByTestId("trigger-detection").click();
   await page.getByTestId("answer-call").click();
-  await expect(page.getByTestId("reverse-auth-phrase")).toBeVisible();
+  await expect(caseColumn(page).getByTestId("reverse-auth-phrase")).toBeVisible();
   await page.getByTestId("end-call").click();
   const all = [...frames, ...bodies].join("\n");
   expect(all).not.toContain("mock-runtime-token");
@@ -168,7 +171,8 @@ test.describe("mobile", () => {
     await page.goto("/demo");
     await page.getByTestId("trigger-detection").click();
     await page.getByTestId("answer-call").click();
-    await expect(page.getByTestId("reverse-auth-phrase")).toBeVisible();
+    // The phrase is shown right under the call on phones, not only in the case column far below.
+    await expect(page.getByTestId("reverse-auth-mobile").getByTestId("reverse-auth-phrase")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await shot(page, "07-demo-mobile");
     await page.getByTestId("end-call").click();

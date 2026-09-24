@@ -12,7 +12,7 @@ import type {
 } from "@guardian/shared";
 
 /** The gateway's public origin. Not a secret: the Alebex token lives only on the gateway. */
-export const GATEWAY_URL = (process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:3001").replace(/\/+$/, "");
+export const GATEWAY_URL = (process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://127.0.0.1:3001").replace(/\/+$/, "");
 export const GATEWAY_WS_URL = GATEWAY_URL.replace(/^http/, "ws");
 export const TICKET_SUBPROTOCOL_PREFIX = "guardian.ticket.";
 
