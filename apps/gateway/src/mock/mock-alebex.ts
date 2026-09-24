@@ -1,15 +1,16 @@
 /**
  * Alebex-compatible MOCK Voice Engine for offline development and tests.
  *
- * It speaks the frames this project's adapter expects (see
- * docs/ALEBEX_PROTOCOL_NOTES.md — the audio/mark/transcript field layouts are
- * this project's working assumption until confirmed by a live probe):
- *   ← audio {type:"audio", data:<base64 PCM16LE 24 kHz>}
- *   ← mark  {type:"mark", name}          → expects the same object echoed back once heard
- *   ← transcript {type:"transcript", role, text, final}
- *   ← conversation_message {type:"conversation_message", role, content}
- *   ← clear_audio {type:"clear_audio"}    on barge-in
- *   ← error {type:"error", code, message} then close 1008 on bad config
+ * Emits the frame shapes confirmed against the live engine by the protocol probe
+ * (docs/ALEBEX_PROTOCOL_NOTES.md):
+ *   ← call_started {type, call_id}
+ *   ← audio {type, data: base64 PCM16LE, format: "pcm16", sample_rate: 24000}
+ *   ← mark {type, name}                 → expects the same object echoed back once heard
+ *   ← transcript {type, role: "user", text, is_final}   (user speech only, as live)
+ *   ← conversation_message {type, role: "assistant"|"user", content, timestamp}
+ *   ← clear_audio {type}                 on barge-in
+ *   ← call_ended {type}                  after end_call; like the live engine it does NOT close the socket
+ *   ← error {type, code, message}        + close 1008 (bad tools) or 1011 (unknown agent)
  *
  * Because it has no speech recognition, the "user" speaks through a mock-only
  * `mock_user_utterance` frame, and the mock suggests replies with `mock_hint`.
@@ -153,29 +154,28 @@ function runCall(ws: WebSocket, rec: MockCallRecord, token: string, pace: number
     const chunks = Math.ceil(seconds / chunkSec);
     const tone = synthTone(seconds, OUTPUT_SAMPLE_RATE, role === "trustline" ? 210 : role === "recovery" ? 195 : 150);
     const perChunk = Math.round(chunkSec * OUTPUT_SAMPLE_RATE);
+    // The agent's words are committed as it starts speaking; the audio follows.
+    send({ type: "conversation_message", role: "assistant", content: text, timestamp: new Date().toISOString() });
     for (let i = 0; i < chunks; i++) {
       if (token.cancelled || ws.readyState !== WebSocket.OPEN) return;
       const slice = tone.subarray(i * perChunk, Math.min(tone.length, (i + 1) * perChunk));
-      send({ type: "audio", data: bytesToBase64(int16ToLeBytes(slice)) });
-      const upto = Math.ceil(((i + 1) / chunks) * words.length);
-      send({ type: "transcript", role: "agent", text: words.slice(0, upto).join(" "), final: false });
+      send({ type: "audio", data: bytesToBase64(int16ToLeBytes(slice)), format: "pcm16", sample_rate: OUTPUT_SAMPLE_RATE });
       await sleep(chunkSec * 700);
     }
     if (token.cancelled) return;
     const name = `utt-${++markSeq}`;
     rec.marksSent.push(name);
     send({ type: "mark", name });
-    send({ type: "conversation_message", role: "agent", content: text });
     if (speaking === token) speaking = null;
   }
 
   async function hear(text: string): Promise<void> {
     const words = text.split(/\s+/);
     for (let i = 1; i <= words.length; i += 3) {
-      send({ type: "transcript", role: "user", text: words.slice(0, i).join(" "), final: false });
+      send({ type: "transcript", role: "user", text: words.slice(0, i).join(" "), is_final: false });
       await sleep(40);
     }
-    send({ type: "conversation_message", role: "user", content: text });
+    send({ type: "conversation_message", role: "user", content: text, timestamp: new Date().toISOString() });
   }
 
   async function tool(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -393,6 +393,7 @@ function runCall(ws: WebSocket, rec: MockCallRecord, token: string, pace: number
         }
         tools = list;
         rec.toolNames = list.map((t) => t.name);
+        send({ type: "call_started", call_id: rec.id.slice(0, 19) });
         role = roleFromAgent(agentId);
         void token;
         enqueue(opening);
@@ -419,7 +420,9 @@ function runCall(ws: WebSocket, rec: MockCallRecord, token: string, pace: number
       }
       case "end_call":
         rec.endCallReceived = true;
-        ws.close(1000, "call ended");
+        if (speaking) speaking.cancelled = true;
+        // Live behaviour: acknowledge with call_ended and leave the socket for the client to close.
+        setTimeout(() => send({ type: "call_ended" }), Math.round(250 * pace));
         return;
       default:
         return;

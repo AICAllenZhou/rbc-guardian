@@ -263,7 +263,7 @@ export function normaliseForIdempotency(tool: ToolName, args: Record<string, unk
 function summariseArgs(args: unknown): string {
   if (!args || typeof args !== "object") return "";
   const entries = Object.entries(args as Record<string, unknown>).filter(([, v]) => v !== undefined && v !== "");
-  return redact(entries.map(([k, v]) => `${k.replaceAll("_", " ")}: ${String(v)}`).join(" · ")).slice(0, 240);
+  return redact(entries.map(([k, v]) => `${k.replaceAll("_", " ")}: ${String(v)}`).join("; ")).slice(0, 240);
 }
 
 function humanAgo(iso: string): string {

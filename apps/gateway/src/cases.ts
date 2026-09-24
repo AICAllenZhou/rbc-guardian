@@ -32,7 +32,7 @@ export class CaseError extends Error {
 export function actorFor(role: AgentRole | "operator" | "system"): string {
   if (role === "operator") return "Demo operator";
   if (role === "system") return "Guardian fraud engine (mock)";
-  return `${AGENT_PERSONAS[role].name} · ${AGENT_PERSONAS[role].title}`;
+  return `${AGENT_PERSONAS[role].name}, ${AGENT_PERSONAS[role].title}`;
 }
 
 export class CaseService {

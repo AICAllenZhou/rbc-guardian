@@ -59,6 +59,8 @@ interface Report {
   binaryFrames: { count: number; sizes: number[] };
   agentAudio: { bytes: number; secondsAt24k: number; encodings: string[] };
   marks: { received: number; echoed: number; flushedByClear: number };
+  /** Values of fields that are enumerations, never content: safe to record. */
+  enumValues: Record<string, string[]>;
   close: { code?: number; reason?: string };
   notes: string[];
   summary: string;
@@ -76,6 +78,7 @@ const report: Report = {
   binaryFrames: { count: 0, sizes: [] },
   agentAudio: { bytes: 0, secondsAt24k: 0, encodings: [] },
   marks: { received: 0, echoed: 0, flushedByClear: 0 },
+  enumValues: {},
   close: {},
   notes: [],
   summary: "",
@@ -118,8 +121,17 @@ function makeFixture(): { pcm: Buffer; source: string } {
   }
 }
 
+const ENUM_FIELDS = ["format", "sample_rate", "sampleRate", "role", "speaker", "code", "final", "is_final", "isFinal", "status", "encoding", "channels"];
+
 function recordShape(type: string, raw: Record<string, unknown>): void {
   report.frames[type] = (report.frames[type] ?? 0) + 1;
+  for (const f of ENUM_FIELDS) {
+    const v = raw[f];
+    if (v === undefined || (typeof v === "string" && v.length > 24) || (typeof v === "object" && v !== null)) continue;
+    const key = `${type}.${f}`;
+    const list = (report.enumValues[key] ??= []);
+    if (!list.includes(String(v)) && list.length < 6) list.push(String(v));
+  }
   const list = (report.shapes[type] ??= []);
   if (list.length < 2) list.push(describeShape(raw));
 }
@@ -148,6 +160,8 @@ async function run(): Promise<number> {
   let sawText = false;
   let sawError: string | null = null;
   let ended = false;
+  let agentTurns = 0;
+  let endSentAt = 0;
 
   const done = new Promise<void>((resolveDone) => {
     ws.on("unexpected-response", (_req, res) => {
@@ -162,6 +176,7 @@ async function run(): Promise<number> {
     });
     ws.on("close", (code, reason) => {
       report.close = { code, reason: reason.toString("utf8").slice(0, 120) };
+      if (endSentAt) report.notes.push(`Socket closed ${Date.now() - endSentAt} ms after end_call.`);
       log(`[probe] closed ${code} ${report.close.reason ?? ""}`);
       resolveDone();
     });
@@ -213,8 +228,11 @@ async function run(): Promise<number> {
         report.marks.flushedByClear += timeline.clear(clock()).droppedMarks.length;
         break;
       case "transcript":
+        sawText = true;
+        break;
       case "conversation_message":
         sawText = true;
+        if (ev.role === "agent") agentTurns++;
         break;
       case "error":
         sawError = ev.code ?? "error";
@@ -222,6 +240,10 @@ async function run(): Promise<number> {
         break;
       case "unknown":
         report.notes.push(`Adapter did not recognise frame type "${type}": ${ev.reason}`);
+        break;
+      case "control":
+        if (ev.type === "call_ended" && endSentAt) report.notes.push(`call_ended arrived ${Date.now() - endSentAt} ms after end_call.`);
+        else if (ev.type === "call_ended") report.notes.push("call_ended arrived before end_call was sent (engine ended the call).");
         break;
       default:
         break;
@@ -238,6 +260,8 @@ async function run(): Promise<number> {
     }
   }, 50);
 
+  // Turn-taking like a person: keep the mic open with silence, speak only after the
+  // greeting has been heard (its mark echoed), then wait for the agent's reply.
   async function streamFixture(sock: WebSocket, pcm: Buffer): Promise<void> {
     const silence = Buffer.alloc(FRAME_BYTES);
     const frames: Buffer[] = [];
@@ -246,23 +270,38 @@ async function run(): Promise<number> {
       pcm.copy(f, 0, o, Math.min(pcm.byteLength, o + FRAME_BYTES));
       frames.push(f);
     }
-    for (let i = 0; i < 5; i++) frames.unshift(silence); // let the agent greet first
-    // Then keep streaming silence (like an open mic) while the agent answers.
-    for (let i = 0; i < 90; i++) frames.push(silence);
-    for (const f of frames) {
-      if (sock.readyState !== WebSocket.OPEN || ended) return;
-      sock.send(f, { binary: true });
-      await new Promise((r) => setTimeout(r, 200));
+    const open = () => sock.readyState === WebSocket.OPEN && !ended;
+    const tick = () => new Promise((r) => setTimeout(r, 200));
+    let waited = 0;
+    while (open() && report.marks.echoed === 0 && waited < 75) {
+      sock.send(silence, { binary: true });
+      await tick();
+      waited++;
     }
+    const agentTurnsBefore = agentTurns;
+    report.notes.push(`Spoke after ${(waited * 0.2).toFixed(1)} s of silence (${report.marks.echoed > 0 ? "greeting mark echoed first" : "no greeting mark seen"}).`);
+    for (const f of frames) {
+      if (!open()) return;
+      sock.send(f, { binary: true });
+      await tick();
+    }
+    waited = 0;
+    while (open() && waited < 100 && !(agentTurns > agentTurnsBefore && !timeline.isPlaying(clock()))) {
+      sock.send(silence, { binary: true });
+      await tick();
+      waited++;
+    }
+    report.notes.push(agentTurns > agentTurnsBefore ? `Agent replied within ${(waited * 0.2).toFixed(1)} s of the phrase ending.` : "No agent reply observed after the phrase.");
     if (sock.readyState === WebSocket.OPEN) {
       ended = true;
+      endSentAt = Date.now();
       sock.send(JSON.stringify(END_CALL_FRAME));
       log("[probe] sent end_call");
       setTimeout(() => sock.readyState !== WebSocket.CLOSED && sock.terminate(), 5_000);
     }
   }
 
-  const hardStop = setTimeout(() => ws.terminate(), authOnly ? 15_000 : 45_000);
+  const hardStop = setTimeout(() => ws.terminate(), authOnly ? 15_000 : 70_000);
   await done;
   clearTimeout(hardStop);
   clearInterval(markTimer);

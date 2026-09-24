@@ -13,43 +13,49 @@ describe("client frames", () => {
   });
 });
 
-describe("parseServerText", () => {
-  it("decodes base64 audio in data/audio/payload/media.payload", () => {
-    const b64 = Buffer.from([1, 0, 2, 0]).toString("base64");
-    for (const frame of [{ type: "audio", data: b64 }, { type: "audio", audio: b64 }, { type: "audio", payload: b64 }, { type: "audio", media: { payload: b64 } }]) {
-      const e = parseServerText(JSON.stringify(frame));
-      expect(e.kind).toBe("audio");
-      if (e.kind === "audio") expect(Array.from(e.pcm)).toEqual([1, 0, 2, 0]);
-    }
+describe("parseServerText (shapes confirmed by the live probe)", () => {
+  const b64 = Buffer.from([1, 0, 2, 0]).toString("base64");
+
+  it("decodes live audio frames {data, format: pcm16, sample_rate}", () => {
+    const e = parseServerText(JSON.stringify({ type: "audio", data: b64, format: "pcm16", sample_rate: 24000 }));
+    expect(e).toMatchObject({ kind: "audio", sampleRate: 24000 });
+    if (e.kind === "audio") expect(Array.from(e.pcm)).toEqual([1, 0, 2, 0]);
   });
 
-  it("reports audio without a payload as unknown instead of throwing", () => {
-    expect(parseServerText(JSON.stringify({ type: "audio" })).kind).toBe("unknown");
+  it("carries a non-default sample rate through instead of assuming 24 kHz", () => {
+    expect(parseServerText(JSON.stringify({ type: "audio", data: b64, format: "pcm16", sample_rate: 16000 }))).toMatchObject({ kind: "audio", sampleRate: 16000 });
+  });
+
+  it("refuses unconfirmed audio layouts and formats rather than guessing", () => {
+    expect(parseServerText(JSON.stringify({ type: "audio", payload: b64 })).kind).toBe("unknown");
+    expect(parseServerText(JSON.stringify({ type: "audio", data: b64, format: "mulaw" }))).toMatchObject({ kind: "unknown", reason: expect.stringContaining("mulaw") });
     expect(parseServerText(JSON.stringify({ type: "audio", data: "@@@" })).kind).toBe("unknown");
   });
 
   it("keeps mark frames verbatim for echo", () => {
-    const e = parseServerText(JSON.stringify({ type: "mark", name: "utt-1", extra: 3 }));
-    expect(e).toEqual({ kind: "mark", raw: { type: "mark", name: "utt-1", extra: 3 }, label: "utt-1" });
+    expect(parseServerText(JSON.stringify({ type: "mark", name: "m-1" }))).toEqual({ kind: "mark", raw: { type: "mark", name: "m-1" }, label: "m-1" });
+    expect(parseServerText(JSON.stringify({ type: "mark", id: 3 })).kind).toBe("unknown");
   });
 
-  it("normalises transcript roles and finality", () => {
-    const partial = parseServerText(JSON.stringify({ type: "transcript", role: "assistant", text: "Hello" }));
-    expect(partial).toMatchObject({ kind: "transcript", role: "agent", text: "Hello", final: false });
-    const fin = parseServerText(JSON.stringify({ type: "transcript", speaker: "user", transcript: "Hi", isFinal: true }));
-    expect(fin).toMatchObject({ kind: "transcript", role: "user", text: "Hi", final: true });
+  it("reads user transcript snapshots with is_final", () => {
+    expect(parseServerText(JSON.stringify({ type: "transcript", role: "user", text: "I received", is_final: false }))).toMatchObject({ kind: "transcript", role: "user", text: "I received", final: false });
+    expect(parseServerText(JSON.stringify({ type: "transcript", role: "user", text: "Done", is_final: true }))).toMatchObject({ final: true });
   });
 
-  it("reads conversation_message flat or nested", () => {
-    expect(parseServerText(JSON.stringify({ type: "conversation_message", role: "agent", content: "Hi" }))).toMatchObject({ kind: "conversation_message", role: "agent", text: "Hi" });
-    expect(parseServerText(JSON.stringify({ type: "conversation_message", message: { role: "user", text: "Yo", id: "m1" } }))).toMatchObject({ kind: "conversation_message", role: "user", text: "Yo", id: "m1" });
+  it("reads conversation_message with assistant/user roles and content", () => {
+    expect(parseServerText(JSON.stringify({ type: "conversation_message", role: "assistant", content: "Hi", timestamp: "2026-09-24T00:00:00Z" }))).toMatchObject({ kind: "conversation_message", role: "agent", text: "Hi" });
+    expect(parseServerText(JSON.stringify({ type: "conversation_message", role: "user", content: "Yo" }))).toMatchObject({ role: "user" });
+    expect(parseServerText(JSON.stringify({ type: "conversation_message", role: "robot", content: "?" })).kind).toBe("unknown");
   });
 
-  it("parses documented error frames", () => {
-    expect(parseServerText(JSON.stringify({ type: "error", code: "invalid_config", message: "bad" }))).toEqual({ kind: "error", code: "invalid_config", message: "bad" });
+  it("parses the live error frame and the documented one", () => {
+    expect(parseServerText(JSON.stringify({ type: "error", code: "payload_unavailable", message: "x" }))).toEqual({ kind: "error", code: "payload_unavailable", message: "x" });
+    expect(parseServerText(JSON.stringify({ type: "error", code: "invalid_config" }))).toEqual({ kind: "error", code: "invalid_config" });
   });
 
-  it("recognises clear_audio and flags unknown types", () => {
+  it("treats call_started/call_ended as control, clear_audio as a flush, and flags the rest", () => {
+    expect(parseServerText('{"type":"call_started","call_id":"abc"}')).toMatchObject({ kind: "control", type: "call_started" });
+    expect(parseServerText('{"type":"call_ended"}')).toMatchObject({ kind: "control", type: "call_ended" });
     expect(parseServerText('{"type":"clear_audio"}').kind).toBe("clear_audio");
     expect(parseServerText('{"type":"surprise","x":1}')).toMatchObject({ kind: "unknown", type: "surprise" });
     expect(parseServerText("not json").kind).toBe("unknown");

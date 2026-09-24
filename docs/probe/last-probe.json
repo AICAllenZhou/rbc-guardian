@@ -1,23 +1,90 @@
 {
   "status": "pass",
-  "mode": "auth-only",
-  "at": "2026-09-24T07:23:24.078Z",
-  "tokenEnvName": "ALEB_API_KEY",
+  "mode": "full",
+  "at": "2026-09-24T09:12:47.536Z",
+  "tokenEnvName": "ALEBEX_API_KEY",
   "endpoint": "wss://api.voice.alebex.ai/public/ws/call",
   "handshake": {
     "ok": true,
     "subprotocolEchoed": "alebex.token.[token]",
-    "latencyMs": 386
+    "latencyMs": 335
   },
   "frames": {
-    "error": 1
+    "conversation_message": 3,
+    "audio": 118,
+    "mark": 2,
+    "call_started": 1,
+    "transcript": 17,
+    "clear_audio": 1,
+    "call_ended": 1
   },
   "shapes": {
-    "error": [
+    "conversation_message": [
       {
-        "type": "error",
-        "code": "string(19)",
-        "message": "string(31)"
+        "type": "conversation_message",
+        "role": "string(9)",
+        "content": "string(161)",
+        "timestamp": "string(26)"
+      },
+      {
+        "type": "conversation_message",
+        "role": "string(4)",
+        "content": "string(51)",
+        "timestamp": "string(26)"
+      }
+    ],
+    "audio": [
+      {
+        "type": "audio",
+        "data": "string(5120)",
+        "format": "string(5)",
+        "sample_rate": "number"
+      },
+      {
+        "type": "audio",
+        "data": "string(5120)",
+        "format": "string(5)",
+        "sample_rate": "number"
+      }
+    ],
+    "mark": [
+      {
+        "type": "mark",
+        "name": "string(9)"
+      },
+      {
+        "type": "mark",
+        "name": "string(9)"
+      }
+    ],
+    "call_started": [
+      {
+        "type": "call_started",
+        "call_id": "string(19)"
+      }
+    ],
+    "transcript": [
+      {
+        "type": "transcript",
+        "text": "string(2)",
+        "is_final": "boolean",
+        "role": "string(4)"
+      },
+      {
+        "type": "transcript",
+        "text": "string(2)",
+        "is_final": "boolean",
+        "role": "string(4)"
+      }
+    ],
+    "clear_audio": [
+      {
+        "type": "clear_audio"
+      }
+    ],
+    "call_ended": [
+      {
+        "type": "call_ended"
       }
     ]
   },
@@ -26,19 +93,45 @@
     "sizes": []
   },
   "agentAudio": {
-    "bytes": 0,
-    "secondsAt24k": 0,
-    "encodings": []
+    "bytes": 945144,
+    "secondsAt24k": 19.7,
+    "encodings": [
+      "json.data:base64"
+    ]
   },
   "marks": {
-    "received": 0,
-    "echoed": 0,
+    "received": 2,
+    "echoed": 2,
     "flushedByClear": 0
   },
+  "enumValues": {
+    "conversation_message.role": [
+      "assistant",
+      "user"
+    ],
+    "audio.format": [
+      "pcm16"
+    ],
+    "audio.sample_rate": [
+      "24000"
+    ],
+    "transcript.role": [
+      "user"
+    ],
+    "transcript.is_final": [
+      "false"
+    ]
+  },
   "close": {
-    "code": 1011,
+    "code": 1006,
     "reason": ""
   },
-  "notes": [],
-  "summary": "Auth-only probe: token accepted; start_call with a nonexistent agent → error frame code \"payload_unavailable\", close 1011. Audio/mark/transcript shapes NOT confirmed (no agent ID configured)."
+  "notes": [
+    "Input fixture: macOS say + ffmpeg (synthetic phrase, not personal data), 90770 bytes PCM16LE 16 kHz mono.",
+    "Spoke after 9.8 s of silence (greeting mark echoed first).",
+    "Agent replied within 12.8 s of the phrase ending.",
+    "call_ended arrived 269 ms after end_call.",
+    "Socket closed 5003 ms after end_call."
+  ],
+  "summary": "Full probe passed: conversation_message×3, audio×118, mark×2, call_started×1, transcript×17, clear_audio×1, call_ended×1; 0 binary frames; 2/2 marks echoed after simulated playback."
 }

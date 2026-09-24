@@ -14,6 +14,7 @@ import {
   buildStartCall,
   CLOSE_POLICY_VIOLATION,
   END_CALL_FRAME,
+  OUTPUT_SAMPLE_RATE,
   parseServerText,
   TranscriptStore,
   type AgentEvent,
@@ -92,6 +93,7 @@ export class VoiceSession {
   private rateCount = 0;
   private lastErrorCode: string | null = null;
   private startSent = false;
+  private browserSampleRate = OUTPUT_SAMPLE_RATE;
   readonly stats = { micFramesIn: 0, micFramesForwarded: 0, micFramesDropped: 0, audioChunksOut: 0, marksIn: 0, marksAcked: 0, startCallsSent: 0 };
 
   constructor(private readonly deps: VoiceSessionDeps) {
@@ -110,7 +112,7 @@ export class VoiceSession {
     browser.on("close", () => this.end("customer-ended-call (browser closed)"));
     browser.on("error", () => this.end("browser-socket-error"));
     this.timers.push(setTimeout(() => this.end("max-duration-reached"), this.limits.maxDurationSec * 1000));
-    this.deps.cases.event(this.deps.cases.require(this.deps.record.caseId), this.id, "session_started", `${AGENT_PERSONAS[this.deps.record.role].name} call started`, `${AGENT_PERSONAS[this.deps.record.role].title} · ${this.deps.record.mode === "mock" ? "Mock voice runtime" : "Alebex Voice Engine"}${this.deps.customTools.length ? ` · ${this.deps.customTools.length} tools` : " · tools disabled"}`, "Guardian gateway");
+    this.deps.cases.event(this.deps.cases.require(this.deps.record.caseId), this.id, "session_started", `${AGENT_PERSONAS[this.deps.record.role].name} call started`, `${this.deps.record.mode === "mock" ? "Mock voice runtime" : "Alebex Voice Engine"}, ${this.deps.customTools.length ? `${this.deps.customTools.length} tools` : "tools disabled"}`, "Guardian gateway");
     void this.connectUpstream(1);
   }
 
@@ -176,10 +178,8 @@ export class VoiceSession {
   private onUpstreamMessage(data: RawData, isBinary: boolean): void {
     if (this.state === "ended") return;
     if (isBinary) {
-      this.activate();
-      this.deps.diag.recordVariant("audio", "binary");
-      this.stats.audioChunksOut++;
-      this.sendBrowserBinary(toBuffer(data));
+      // Not observed from the live engine (agent audio arrives as JSON). Report it rather than guess at its format.
+      this.deps.diag.recordUnknown("(binary)", `binary frame of ${toBuffer(data).byteLength} bytes`, {});
       return;
     }
     const event = parseServerText(toBuffer(data).toString("utf8"));
@@ -192,6 +192,10 @@ export class VoiceSession {
       case "audio":
         this.deps.diag.recordVariant("audio", event.variant);
         this.stats.audioChunksOut++;
+        if (event.sampleRate !== this.browserSampleRate) {
+          this.browserSampleRate = event.sampleRate;
+          this.sendBrowser({ type: "audio_format", sampleRate: event.sampleRate });
+        }
         this.sendBrowserBinary(Buffer.from(event.pcm.buffer, event.pcm.byteOffset, event.pcm.byteLength));
         return;
       case "clear_audio":
@@ -223,6 +227,15 @@ export class VoiceSession {
         this.sendBrowser({ type: "error", code: event.code ?? "alebex_error", message: humanError(event.code, event.message), recoverable: !["invalid_config", "payload_unavailable", "AGENT_NOT_FOUND", "AGENT_NOT_IN_ACCOUNT"].includes(event.code ?? "") });
         return;
       case "control":
+        if (event.type === "call_ended") {
+          // Live engine: call_ended follows end_call within ~300 ms but the socket stays open, so close it ourselves.
+          if (this.state === "ending") this.finish(this.deps.record.endReason ?? "customer-ended-call");
+          else if (this.state === "active" || this.state === "starting") {
+            this.deps.record.endReason = "assistant-ended-call";
+            this.transition("ending");
+            this.finish("assistant-ended-call");
+          }
+        }
         return;
       case "unknown":
         if (event.type === "mock_hint") {

@@ -94,16 +94,32 @@ describe("audio and control forwarding", () => {
     client.ws.close();
   });
 
-  it("sends transcript partials as snapshots and commits one message per utterance", async () => {
+  it("forwards user transcript partials as full snapshots and commits one message per utterance", async () => {
     t = await startGateway();
     await post(t.base, "/api/demo/detect");
     const { client } = await openCall(t, "sentinel");
-    await client.nextHint(0);
-    const partials = client.messages.filter((m) => m.type === "transcript" && m.role === "agent");
-    expect(partials.length).toBeGreaterThan(2);
+    const h = await client.nextHint(0);
+    client.say(h[0]!);
+    await client.waitFor("message", (m) => m.role === "user");
+    const partials = client.messages.filter((m) => m.type === "transcript" && m.role === "user").map((m) => (m as { text: string }).text);
+    expect(partials.length).toBeGreaterThan(1);
+    // Each partial restates the utterance so far (a snapshot), never a fragment to append.
+    partials.forEach((p) => expect(h[0]!.startsWith(p)).toBe(true));
     const messages = client.messages.filter((m) => m.type === "message");
     expect(new Set(messages.map((m) => (m as { text: string }).text)).size).toBe(messages.length);
     client.ws.close();
+  });
+
+  it("finishes promptly on call_ended even though the engine leaves the socket open", async () => {
+    t = await startGateway();
+    await post(t.base, "/api/demo/detect");
+    const { client } = await openCall(t, "sentinel");
+    await client.waitFor("state", (m) => m.state === "active");
+    const t0 = Date.now();
+    client.ws.send(JSON.stringify({ type: "end" }));
+    await client.waitFor("ended");
+    expect(Date.now() - t0).toBeLessThan(250); // the 300 ms grace timer never had to fire
+    expect(await client.waitClose()).toBe(1000);
   });
 
   it("forwards clear_audio on barge-in and never acknowledges the interrupted utterance", async () => {

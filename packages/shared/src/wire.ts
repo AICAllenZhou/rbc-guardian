@@ -39,6 +39,8 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 export type ServerMessage =
   | { type: "state"; state: SessionState; detail?: string }
   | { type: "clear_audio" }
+  /** Sent before binary audio whenever the engine's output rate differs from the last one (default 24 kHz). */
+  | { type: "audio_format"; sampleRate: number }
   | { type: "mark"; mark: Record<string, unknown> }
   | { type: "transcript"; role: "user" | "agent"; text: string; final: boolean }
   | { type: "message"; role: "user" | "agent"; text: string; id: string }

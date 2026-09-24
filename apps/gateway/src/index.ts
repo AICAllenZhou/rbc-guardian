@@ -15,7 +15,8 @@ async function main(): Promise<void> {
     }
     throw err;
   }
-  const gw = await buildGateway(cfg, { logger: log });
+  const pace = Number(process.env.MOCK_PACE ?? "1");
+  const gw = await buildGateway(cfg, { logger: log, mock: { pace: Number.isFinite(pace) && pace >= 0 ? pace : 1 } });
   await gw.app.listen({ port: cfg.port, host: cfg.host });
   log.info("gateway.listening", {
     url: `http://${cfg.host}:${cfg.port}`,

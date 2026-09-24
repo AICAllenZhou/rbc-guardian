@@ -1,20 +1,24 @@
 /**
  * Alebex Voice Engine browser-call frames.
  *
- * DOCUMENTED (AGENTS.md, "Custom tools"): URL, `alebex.token.<token>` subprotocol,
- * `{"type":"start_call","agent":{"id"},"customTools":[...]}`, `{"type":"end_call"}`,
- * and `error` frames carrying a `code` (e.g. `invalid_config`, then close 1008).
- * Input audio is binary PCM16LE mono 16 kHz.
+ * DOCUMENTED (AGENTS.md "Custom tools"): URL, `alebex.token.<token>` subprotocol,
+ * `start_call {agent:{id}, customTools}`, `end_call`, and `error {code}` + close 1008
+ * for a bad tool. Input audio is binary PCM16LE mono 16 kHz.
  *
- * NOT DOCUMENTED in any source available to this project: the field layout of
- * `audio`, `mark`, `transcript` and `conversation_message`. This module is the
- * ONLY place that knows about those layouts. It accepts the small set of
- * plausible encodings listed in docs/ALEBEX_PROTOCOL_NOTES.md, tags every parse
- * with the variant it matched, and reports anything else as `unknown` so the
- * probe and diagnostics can surface it rather than silently dropping it.
+ * CONFIRMED BY LIVE PROBE (scripts/probe-alebex-voice.ts, 2026-09-24; see
+ * docs/ALEBEX_PROTOCOL_NOTES.md). This adapter accepts exactly these shapes:
+ *   audio                {type, data: base64 PCM16LE, format: "pcm16", sample_rate: 24000}
+ *   mark                 {type, name}                      → echo verbatim once heard
+ *   clear_audio          {type}
+ *   transcript           {type, role: "user", text, is_final}   (snapshot, assign)
+ *   conversation_message {type, role: "assistant"|"user", content, timestamp}
+ *   call_started         {type, call_id}
+ *   call_ended           {type}                            (sent after end_call; the socket is NOT closed by the engine)
+ *   error                {type, code, message}             (unknown agent: code "payload_unavailable", then close 1011)
+ * Anything else is reported as `unknown` with its shape, never guessed at.
  */
 import { z } from "zod";
-import { base64ToBytes } from "./audio";
+import { base64ToBytes, OUTPUT_SAMPLE_RATE } from "./audio";
 
 export const ALEBEX_WS_URL = "wss://api.voice.alebex.ai/public/ws/call";
 export const ALEBEX_SUBPROTOCOL_PREFIX = "alebex.token.";
@@ -49,7 +53,7 @@ export function buildStartCall(agentId: string, customTools: CustomToolDefinitio
 export type Speaker = "user" | "agent";
 
 export type AgentEvent =
-  | { kind: "audio"; pcm: Uint8Array; sampleRate?: number; variant: string }
+  | { kind: "audio"; pcm: Uint8Array; sampleRate: number; variant: string }
   | { kind: "clear_audio" }
   | { kind: "mark"; raw: Record<string, unknown>; label: string }
   | { kind: "transcript"; role: Speaker; text: string; final: boolean; variant: string }
@@ -58,43 +62,21 @@ export type AgentEvent =
   | { kind: "control"; type: string; raw: Record<string, unknown> }
   | { kind: "unknown"; type: string; raw: Record<string, unknown>; reason: string };
 
-/** Frame types that are recognised but carry nothing the UI must act on. */
-const PASSIVE_TYPES = new Set(["call_started", "call_ended", "ready", "ack", "ping", "pong", "metadata", "session", "vad"]);
+/** Confirmed control frames that carry nothing the UI must render. */
+const PASSIVE_TYPES = new Set(["call_started", "call_ended"]);
 
 const looseObject = z.record(z.string(), z.unknown());
 
-function pickString(obj: Record<string, unknown>, keys: string[]): [string, string] | null {
-  for (const k of keys) {
-    const v = obj[k];
-    if (typeof v === "string") return [k, v];
-  }
+const AudioFrame = z.object({ type: z.literal("audio"), data: z.string().min(1), format: z.literal("pcm16").optional(), sample_rate: z.number().int().positive().optional() });
+const MarkFrame = z.object({ type: z.literal("mark"), name: z.string() });
+const TranscriptFrame = z.object({ type: z.literal("transcript"), role: z.string(), text: z.string(), is_final: z.boolean().optional() });
+const MessageFrame = z.object({ type: z.literal("conversation_message"), role: z.string(), content: z.string(), timestamp: z.string().optional(), id: z.string().optional() });
+const ErrorFrame = z.object({ type: z.literal("error"), code: z.string().optional(), message: z.string().optional() });
+
+function speaker(role: string): Speaker | null {
+  if (role === "assistant" || role === "agent") return "agent";
+  if (role === "user") return "user";
   return null;
-}
-
-function normaliseRole(v: unknown): Speaker | null {
-  if (typeof v !== "string") return null;
-  const r = v.toLowerCase();
-  if (["agent", "assistant", "bot", "ai", "model"].includes(r)) return "agent";
-  if (["user", "customer", "caller", "human", "you"].includes(r)) return "user";
-  return null;
-}
-
-function roleOf(obj: Record<string, unknown>): Speaker | null {
-  return normaliseRole(obj.role) ?? normaliseRole(obj.speaker) ?? normaliseRole(obj.from) ?? normaliseRole(obj.source);
-}
-
-function finalOf(obj: Record<string, unknown>): boolean {
-  if (typeof obj.final === "boolean") return obj.final;
-  if (typeof obj.isFinal === "boolean") return obj.isFinal;
-  if (typeof obj.is_final === "boolean") return obj.is_final;
-  if (typeof obj.partial === "boolean") return !obj.partial;
-  if (obj.transcriptType === "final" || obj.status === "final" || obj.state === "final") return true;
-  return false;
-}
-
-function nested(obj: Record<string, unknown>, key: string): Record<string, unknown> | null {
-  const v = obj[key];
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
 /** Parse one text frame from the engine. Never throws. */
@@ -112,58 +94,43 @@ export function parseServerText(text: string): AgentEvent {
 
 export function parseServerObject(obj: Record<string, unknown>): AgentEvent {
   const type = typeof obj.type === "string" ? obj.type : "(missing type)";
+  const bad = (reason: string): AgentEvent => ({ kind: "unknown", type, raw: obj, reason });
   switch (type) {
     case "audio": {
-      const hit = pickString(obj, ["data", "audio", "payload", "chunk", "pcm"]);
-      const media = nested(obj, "media");
-      const mediaHit = media ? pickString(media, ["payload", "data"]) : null;
-      const source = hit ?? mediaHit;
-      if (!source) return { kind: "unknown", type, raw: obj, reason: "audio frame without a base64 string field" };
+      const f = AudioFrame.safeParse(obj);
+      if (!f.success) return bad(obj.format !== undefined && obj.format !== "pcm16" ? `unsupported audio format "${String(obj.format)}"` : "audio frame does not match {data, format, sample_rate}");
       try {
-        const pcm = base64ToBytes(source[1]);
-        const rate =
-          typeof obj.sampleRate === "number" ? obj.sampleRate : typeof obj.sample_rate === "number" ? obj.sample_rate : undefined;
-        const variant = hit ? `json.${source[0]}:base64` : `json.media.${source[0]}:base64`;
-        return rate === undefined ? { kind: "audio", pcm, variant } : { kind: "audio", pcm, sampleRate: rate, variant };
+        return { kind: "audio", pcm: base64ToBytes(f.data.data), sampleRate: f.data.sample_rate ?? OUTPUT_SAMPLE_RATE, variant: "json.data:base64" };
       } catch {
-        return { kind: "unknown", type, raw: obj, reason: "audio payload was not valid base64" };
+        return bad("audio payload was not valid base64");
       }
     }
     case "clear_audio":
-    case "clear":
       return { kind: "clear_audio" };
     case "mark": {
-      const m = nested(obj, "mark");
-      const label =
-        pickString(obj, ["name", "id", "mark", "label"])?.[1] ?? (m ? pickString(m, ["name", "id"])?.[1] : undefined) ?? "";
-      return { kind: "mark", raw: obj, label };
+      const f = MarkFrame.safeParse(obj);
+      return f.success ? { kind: "mark", raw: obj, label: f.data.name } : bad("mark frame without a string name");
     }
-    case "transcript":
-    case "transcript_partial":
-    case "transcript_final": {
-      const role = roleOf(obj);
-      const t = pickString(obj, ["text", "transcript", "content", "delta"]);
-      if (!role || !t) return { kind: "unknown", type, raw: obj, reason: "transcript without recognisable role/text" };
-      const final = type === "transcript_final" ? true : type === "transcript_partial" ? false : finalOf(obj);
-      return { kind: "transcript", role, text: t[1], final, variant: `role+${t[0]}` };
+    case "transcript": {
+      const f = TranscriptFrame.safeParse(obj);
+      const role = f.success ? speaker(f.data.role) : null;
+      if (!f.success || !role) return bad("transcript frame does not match {role, text, is_final}");
+      return { kind: "transcript", role, text: f.data.text, final: f.data.is_final ?? false, variant: "role+text+is_final" };
     }
     case "conversation_message": {
-      const msg = nested(obj, "message") ?? obj;
-      const role = roleOf(msg);
-      const t = pickString(msg, ["text", "content", "transcript"]);
-      if (!role || !t) return { kind: "unknown", type, raw: obj, reason: "conversation_message without role/text" };
-      const id = pickString(msg, ["id", "messageId", "item_id"])?.[1];
-      const variant = msg === obj ? `flat.${t[0]}` : `message.${t[0]}`;
-      return id ? { kind: "conversation_message", role, text: t[1], id, variant } : { kind: "conversation_message", role, text: t[1], variant };
+      const f = MessageFrame.safeParse(obj);
+      const role = f.success ? speaker(f.data.role) : null;
+      if (!f.success || !role) return bad("conversation_message does not match {role, content}");
+      return { kind: "conversation_message", role, text: f.data.content, ...(f.data.id ? { id: f.data.id } : {}), variant: "flat.content" };
     }
     case "error": {
-      const code = pickString(obj, ["code", "error_code"])?.[1];
-      const message = pickString(obj, ["message", "detail", "error"])?.[1];
-      return { kind: "error", ...(code ? { code } : {}), ...(message ? { message } : {}) };
+      const f = ErrorFrame.safeParse(obj);
+      if (!f.success) return { kind: "error" };
+      return { kind: "error", ...(f.data.code ? { code: f.data.code } : {}), ...(f.data.message ? { message: f.data.message } : {}) };
     }
     default:
       if (PASSIVE_TYPES.has(type)) return { kind: "control", type, raw: obj };
-      return { kind: "unknown", type, raw: obj, reason: "unrecognised frame type" };
+      return bad("unrecognised frame type");
   }
 }
 
