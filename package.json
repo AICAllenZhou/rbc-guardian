@@ -1,0 +1,40 @@
+{
+  "name": "rbc-guardian",
+  "private": true,
+  "version": "0.1.0",
+  "description": "RBC Guardian P1 — browser voice fraud defence concept demo on the Alebex Voice Engine. Not an official RBC product.",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @guardian/gateway --filter @guardian/web dev",
+    "dev:gateway": "pnpm --filter @guardian/gateway dev",
+    "dev:web": "pnpm --filter @guardian/web dev",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
+    "build": "pnpm -r build",
+    "probe:alebex": "tsx scripts/probe-alebex-voice.ts",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "tunnel": "sh scripts/tunnel.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.13.6",
+    "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^3.2.7",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^3.2.7",
+    "ws": "^8.21.3"
+  }
+}
