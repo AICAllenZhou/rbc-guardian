@@ -1,0 +1,247 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #081a36;
+  --color-panel: #0f2750;
+  --color-panel-2: #133061;
+  --color-rule: #1f3f73;
+  --color-signal: #4c8dff;
+  --color-gold: #e0b660;
+  --color-gold-deep: #b98d35;
+  --color-paper: #eaf0f9;
+  --color-mist: #93a6c4;
+  --color-coral: #ff7a6b;
+  --color-safe: #52c98e;
+  --color-teal: #5ac8c8;
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-seal: 18px;
+}
+
+:root {
+  color-scheme: dark;
+  --focus: #9cc2ff;
+}
+
+html,
+body {
+  background: var(--color-navy);
+  color: var(--color-paper);
+}
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+/* A faint engraved grid, like security paper. Static: it is texture, not motion. */
+.security-paper {
+  background-image:
+    linear-gradient(to right, rgb(76 141 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(76 141 255 / 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Tabular figures only where numbers must align; the face's tabular set also widens punctuation. */
+.nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.measure {
+  max-width: 66ch;
+}
+
+/* Type scale (1.25 ratio) */
+.t-display {
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 800;
+}
+.t-h2 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  font-weight: 750;
+}
+.t-h3 {
+  font-size: 1.15rem;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.t-lede {
+  font-size: 1.2rem;
+  line-height: 1.55;
+  color: var(--color-mist);
+}
+.t-small {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+/* Surfaces */
+.surface {
+  background: var(--color-panel);
+  border: 1px solid var(--color-rule);
+  border-radius: 14px;
+}
+.surface-quiet {
+  background: rgb(15 39 80 / 0.55);
+  border: 1px solid rgb(31 63 115 / 0.7);
+  border-radius: 14px;
+}
+
+/* The reverse-authentication seal: the one ornamental element in the system. */
+.seal {
+  position: relative;
+  border-radius: var(--radius-seal);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(224 182 96 / 0.22), transparent 55%),
+    linear-gradient(160deg, #1a2f55, #0d2148);
+  border: 1px solid rgb(224 182 96 / 0.55);
+  box-shadow: inset 0 0 0 4px rgb(8 26 54 / 0.6), inset 0 0 0 5px rgb(224 182 96 / 0.25);
+}
+.seal-phrase {
+  color: var(--color-gold);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.7rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  transition: background-color 150ms ease, transform 150ms ease, border-color 150ms ease;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-gold);
+  color: #1b1405;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #ecc674;
+}
+.btn-blue {
+  background: var(--color-signal);
+  color: #04142e;
+}
+.btn-blue:hover:not(:disabled) {
+  background: #6ea3ff;
+}
+.btn-ghost {
+  border: 1px solid var(--color-rule);
+  color: var(--color-paper);
+}
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--color-signal);
+}
+.btn-danger {
+  background: var(--color-coral);
+  color: #2a0703;
+}
+.btn-answer {
+  background: var(--color-safe);
+  color: #03220f;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  border: 1px solid var(--color-rule);
+  color: var(--color-mist);
+}
+
+.live-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-safe);
+  box-shadow: 0 0 0 0 rgb(82 201 142 / 0.6);
+  animation: pulse 1.8s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(82 201 142 / 0.55);
+  }
+  80%,
+  100% {
+    box-shadow: 0 0 0 8px rgb(82 201 142 / 0);
+  }
+}
+
+@keyframes ring {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  10%,
+  30% {
+    transform: rotate(-9deg);
+  }
+  20%,
+  40% {
+    transform: rotate(9deg);
+  }
+  50% {
+    transform: rotate(0);
+  }
+}
+.ringing {
+  animation: ring 1.6s ease-in-out infinite;
+}
+
+@keyframes seal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.seal-in {
+  animation: seal-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.meter-track {
+  background: rgb(31 63 115 / 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
